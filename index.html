@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Планировщик поездок · маршрут и смета</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-icon">🗺️</div>
+      <div>
+        <h1 id="tripTitle">Планировщик поездок</h1>
+        <p id="tripSubtitle" class="subtitle">Выберите город и даты поездки</p>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-ghost" id="btnBudget" title="Смета поездки">💰 Смета</button>
+      <button class="btn btn-ghost" id="btnAiChat" title="ИИ-помощник по маршруту">🤖 Помощник</button>
+      <button class="btn btn-ghost" id="btnAiSettings" title="Настройки DeepSeek">⚙️</button>
+      <button class="btn btn-ghost" id="btnSample" title="Готовый маршрут">✨ Маршрут</button>
+      <button class="btn btn-ghost" id="btnExport" title="Скачать JSON">⬇</button>
+      <button class="btn btn-ghost" id="btnImport" title="Загрузить JSON">⬆</button>
+      <input type="file" id="fileInput" accept="application/json" hidden>
+      <button class="btn btn-primary" id="btnAdd">+ Добавить</button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <section class="trip-setup" id="tripSetup">
+    <h2>Описание поездки</h2>
+    <div class="form-row">
+      <label>Город
+        <input type="text" id="inputCity" list="citySuggestions" placeholder="Введите или выберите" autocomplete="off">
+        <datalist id="citySuggestions"></datalist>
+      </label>
+      <label>Название поездки
+        <input type="text" id="inputTitle" placeholder="Например: Майские праздники">
+      </label>
+      <label>Дата начала
+        <input type="date" id="inputStart">
+      </label>
+      <label>Дата окончания
+        <input type="date" id="inputEnd">
+      </label>
+      <button class="btn btn-primary" id="btnSaveTrip">Сохранить</button>
+    </div>
+    <div class="city-hint">Список мест и готовый маршрут подбираются под выбранный город. План, смета и траты хранятся отдельно для каждого города.</div>
+  </section>
+
+  <section class="budget-card" id="budgetCard" hidden>
+    <div class="budget-header">
+      <div>
+        <div class="budget-title">💰 Смета поездки</div>
+        <div class="budget-sub" id="budgetSub">—</div>
+      </div>
+      <button class="btn btn-ghost" id="btnOpenBudget">Открыть →</button>
+    </div>
+    <div class="budget-stats">
+      <div class="budget-stat"><div class="label">Бюджет</div><div class="value" id="bcTotal">—</div></div>
+      <div class="budget-stat"><div class="label">Потрачено</div><div class="value" id="bcSpent">—</div></div>
+      <div class="budget-stat"><div class="label">Осталось</div><div class="value" id="bcRemaining">—</div></div>
+    </div>
+    <div class="budget-progress"><div class="budget-progress-bar" id="bcBar"></div></div>
+  </section>
+
+  <section id="daysContainer" class="days-container"></section>
+
+  <div id="emptyState" class="empty-state" hidden>
+    <div class="big">🌍</div>
+    <p>Укажите город в форме выше или выберите его из подсказок, чтобы собрать маршрут поездки.</p>
+  </div>
+</main>
+
+<!-- Modal: Excursion -->
+<div class="modal-overlay" id="modalOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2 id="modalTitle">Новая экскурсия</h2>
+      <button class="icon-btn" id="btnCloseModal" aria-label="Закрыть">✕</button>
+    </div>
+    <form id="excursionForm">
+      <input type="hidden" id="fieldId">
+      <div class="form-grid">
+        <label class="full">Каталог экскурсий
+          <select id="catalogSelect"></select>
+        </label>
+        <label class="full">Название *
+          <input type="text" id="fieldTitle" required>
+        </label>
+        <label>Дата *
+          <select id="fieldDate" required></select>
+        </label>
+        <label>Время
+          <input type="time" id="fieldTime">
+        </label>
+        <label>Длительность
+          <input type="text" id="fieldDuration" placeholder="2 ч">
+        </label>
+        <label>Категория
+          <select id="fieldCategory">
+            <option>Музей</option><option>Дворец</option><option>Собор</option>
+            <option>Прогулка</option><option>Парк</option><option>Крепость</option>
+            <option>Театр</option><option>Развлечение</option><option>Еда</option><option>Другое</option>
+          </select>
+        </label>
+        <label class="full">Место
+          <input type="text" id="fieldPlace">
+        </label>
+        <label>Стоимость
+          <input type="number" id="fieldCost" min="0" step="1" placeholder="0">
+        </label>
+        <label>Статус
+          <select id="fieldStatus">
+            <option value="planned">Запланировано</option>
+            <option value="booked">Забронировано</option>
+            <option value="done">Посещено</option>
+            <option value="cancelled">Отменено</option>
+          </select>
+        </label>
+        <label class="full">Ссылка
+          <input type="url" id="fieldLink" placeholder="https://">
+        </label>
+        <label class="full">Заметки
+          <textarea id="fieldNotes" rows="3"></textarea>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" id="btnDelete" hidden>Удалить</button>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-ghost" id="btnCancel">Отмена</button>
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Budget -->
+<div class="modal-overlay" id="budgetOverlay" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2>💰 Смета поездки</h2>
+      <button class="icon-btn" id="btnCloseBudget" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="budget-modal-body">
+      <div class="budget-modal-top">
+        <label>Общий бюджет
+          <input type="number" id="budgetTotalInput" min="0" step="100" placeholder="0">
+        </label>
+        <label>Валюта
+          <select id="budgetCurrency">
+            <option>₽</option><option>$</option><option>€</option>
+            <option>₸</option><option>₴</option><option>¥</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="budget-summary-box">
+        <div class="budget-stat"><div class="label">Бюджет</div><div class="value" id="bmTotal">—</div></div>
+        <div class="budget-stat"><div class="label">Потрачено</div><div class="value" id="bmSpent">—</div></div>
+        <div class="budget-stat"><div class="label">Осталось</div><div class="value" id="bmRemaining">—</div></div>
+      </div>
+
+      <div class="budget-section">
+        <h3>Траты по категориям</h3>
+        <div id="breakdownList"></div>
+      </div>
+
+      <div class="budget-section">
+        <h3>Прочие траты</h3>
+        <div class="expenses-list" id="expensesList"></div>
+        <div class="expense-add-row">
+          <input type="text" id="newExpenseTitle" placeholder="Название расхода">
+          <select id="newExpenseCategory">
+            <option>Проживание</option><option>Транспорт</option>
+            <option>Питание</option><option>Билеты</option>
+            <option>Сувениры</option><option>Разное</option>
+          </select>
+          <input type="number" id="newExpenseCost" min="0" step="1" placeholder="Сумма">
+          <button class="btn btn-primary" id="btnAddExpense">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: AI Settings -->
+<div class="modal-overlay" id="aiSettingsOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2>Настройки DeepSeek</h2>
+      <button class="icon-btn" id="btnCloseAiSettings" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="form-grid" style="padding: 20px;">
+      <label class="full">API-ключ DeepSeek
+        <input type="password" id="aiKey" placeholder="sk-...">
+      </label>
+      <label class="full">Модель
+        <select id="aiModel">
+          <option value="deepseek-flash">deepseek-flash (рекомендуется)</option>
+          <option value="deepseek-v4-pro">deepseek-v4-pro</option>
+        </select>
+      </label>
+      <label class="full">Base URL
+        <input type="text" id="aiBaseUrl" placeholder="https://api.deepseek.com">
+      </label>
+      <div class="full settings-hint">
+        Ключ хранится только в этом браузере (localStorage). Не используйте на чужих устройствах.
+        Если появляется ошибка CORS — укажите адрес вашего прокси в поле Base URL.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="btnClearAiSettings">Очистить</button>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost" id="btnCancelAiSettings">Отмена</button>
+      <button class="btn btn-primary" id="btnSaveAiSettings">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: AI Chat -->
+<div class="modal-overlay" id="aiChatOverlay" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2>🤖 ИИ-помощник по поездке</h2>
+      <button class="icon-btn" id="btnCloseAiChat" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-hint" id="chatHint"></div>
+    <div class="chat-input-row">
+      <textarea id="chatInput" rows="1" placeholder="Напишите вопрос или задачу..."></textarea>
+      <button class="mic-btn" id="micBtn" title="Голосовой ввод">🎤</button>
+      <button class="btn btn-primary" id="btnSendChat">➤</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/dom.js"></script>
+<script src="js/state.js"></script>
+<script src="js/render.js"></script>
+<script src="js/excursion.js"></script>
+<script src="js/budget.js"></script>
+<script src="js/trip.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Служебные файлы проекта — не публикуются вместе с игрой
+docs/
+.opencode/
+AGENTS.md
+opencode.json
+
+# Системный мусор
+.DS_Store
+Thumbs.db
+*.log

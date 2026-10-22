@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Планировщик поездки</title>
+<style>
+  :root {
+    --bg: #eef2f8; --card: #ffffff; --text: #1a2332; --muted: #64748b;
+    --primary: #2563eb; --primary-hover: #1d4ed8; --primary-light: #dbeafe;
+    --border: #e2e8f0; --danger: #dc2626; --danger-light: #fee2e2;
+    --success: #16a34a; --success-light: #dcfce7;
+    --warning: #d97706; --warning-light: #fef3c7;
+    --accent: #f59e0b; --radius: 12px;
+    --shadow: 0 1px 3px rgba(15,23,42,0.06), 0 4px 16px rgba(15,23,42,0.04);
+    --shadow-lg: 0 10px 40px rgba(15,23,42,0.15);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+  .app-header { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+  .header-inner { max-width: 1100px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-icon { font-size: 28px; }
+  .brand h1 { margin: 0; font-size: 18px; font-weight: 700; }
+  .subtitle { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .btn { border: none; cursor: pointer; font-size: 14px; font-weight: 500; padding: 9px 14px; border-radius: 8px; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; transition: background 0.15s, transform 0.05s; }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: #f1f5f9; }
+  .btn-light { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); }
+  .btn-light:hover { background: rgba(255,255,255,0.3); }
+  .btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger-light); }
+  .btn-danger:hover { background: var(--danger-light); }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+  .trip-setup { background: var(--card); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .trip-setup h2 { margin: 0 0 14px; font-size: 16px; }
+  .form-row { display: grid; grid-template-columns: 1.2fr 1.5fr 1fr 1fr auto; gap: 12px; align-items: end; }
+  .form-row label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 500; }
+  .city-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  input[type="text"], input[type="date"], input[type="time"], input[type="url"], input[type="password"], input[type="number"], select, textarea {
+    width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; font-family: inherit; color: var(--text); background: white;
+    transition: border 0.15s, box-shadow 0.15s;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+
+  /* Budget card */
+  .budget-card { background: var(--card); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); margin-bottom: 20px; }
+  .budget-card[hidden] { display: none; }
+  .budget-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .budget-title { font-weight: 700; font-size: 15px; }
+  .budget-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .budget-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+  .budget-stat { padding: 10px 14px; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); }
+  .budget-stat .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+  .budget-stat .value { font-size: 18px; font-weight: 700; margin-top: 2px; }
+  .budget-stat .value.pos { color: var(--success); }
+  .budget-stat .value.neg { color: var(--danger); }
+  .budget-progress { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+  .budget-progress-bar { height: 100%; background: var(--success); transition: width 0.3s, background 0.3s; width: 0; }
+  .budget-progress-bar.warn { background: var(--warning); }
+  .budget-progress-bar.over { background: var(--danger); }
+
+  /* Budget modal */
+  .budget-modal-body { padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; }
+  .budget-modal-top { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+  .budget-modal-top label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 500; }
+  .budget-summary-box { padding: 14px; background: #f8fafc; border-radius: 10px; border: 1px solid var(--border); display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .budget-summary-box .budget-stat { background: transparent; border: none; padding: 0; }
+  .budget-section h3 { margin: 0 0 8px; font-size: 14px; }
+  .breakdown-item { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 6px 0; font-size: 13px; }
+  .breakdown-item .bar-wrap { grid-column: 1 / -1; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+  .breakdown-item .bar { height: 100%; background: var(--primary); border-radius: 3px; }
+  .breakdown-empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+  .expenses-list { display: flex; flex-direction: column; gap: 8px; }
+  .expense-row { display: grid; grid-template-columns: 1.5fr 1fr 1fr auto; gap: 8px; align-items: center; padding: 8px; background: #fafbfc; border: 1px solid var(--border); border-radius: 8px; }
+  .expense-row input, .expense-row select { padding: 6px 8px; font-size: 13px; }
+  .expense-add-row { display: grid; grid-template-columns: 1.5fr 1fr 1fr auto; gap: 8px; align-items: center; padding: 8px; background: var(--primary-light); border-radius: 8px; margin-top: 8px; }
+  .expense-add-row input, .expense-add-row select { background: white; }
+  .expense-empty { color: var(--muted); font-size: 13px; padding: 8px 0; text-align: center; }
+
+  .day-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 16px; overflow: hidden; }
+  .day-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; gap: 12px; color: white; background: linear-gradient(135deg, #1e3a8a, #3b82f6); }
+  .day-title { font-weight: 700; font-size: 16px; }
+  .day-meta { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+  .day-body { padding: 12px; }
+  .day-empty { padding: 20px; text-align: center; color: var(--muted); font-size: 14px; }
+
+  .excursion { display: flex; gap: 14px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: #fafbfc; margin-bottom: 8px; align-items: flex-start; transition: background 0.15s; }
+  .excursion:last-child { margin-bottom: 0; }
+  .excursion:hover { background: #f1f5f9; }
+  .exc-time { font-weight: 700; font-size: 15px; color: var(--primary); min-width: 54px; padding-top: 2px; }
+  .exc-time-empty { color: var(--muted); font-weight: 400; }
+  .exc-main { flex: 1; min-width: 0; }
+  .exc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .exc-title { font-weight: 600; font-size: 15px; }
+  .exc-place { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .exc-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; align-items: center; }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 12px; background: var(--primary-light); color: var(--primary); font-size: 11px; font-weight: 600; }
+  .chip-muted { background: #e2e8f0; color: #475569; }
+  .chip-cost { background: var(--success-light); color: var(--success); }
+  .exc-link { font-size: 11px; color: var(--primary); text-decoration: none; font-weight: 600; }
+  .exc-link:hover { text-decoration: underline; }
+  .exc-notes { font-size: 13px; color: #475569; margin-top: 6px; padding: 6px 10px; background: #fffbeb; border-left: 3px solid var(--accent); border-radius: 4px; }
+  .exc-actions { display: flex; gap: 4px; }
+  .icon-btn { background: transparent; border: none; padding: 6px; cursor: pointer; border-radius: 6px; font-size: 15px; transition: background 0.15s; }
+  .icon-btn:hover { background: #e2e8f0; }
+
+  .status-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+  .status-planned { background: #e0e7ff; color: #4338ca; }
+  .status-booked { background: var(--warning-light); color: var(--warning); }
+  .status-done { background: var(--success-light); color: var(--success); }
+  .status-cancelled { background: var(--danger-light); color: var(--danger); text-decoration: line-through; opacity: 0.7; }
+
+  .empty-state { background: var(--card); border-radius: var(--radius); padding: 50px 20px; text-align: center; color: var(--muted); box-shadow: var(--shadow); }
+  .empty-state .big { font-size: 40px; margin-bottom: 10px; }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.5); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 100; }
+  .modal-overlay[hidden] { display: none; }
+  .modal { background: white; border-radius: var(--radius); width: 100%; max-width: 560px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); }
+  .modal-wide { max-width: 720px; }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .modal-header h2 { margin: 0; font-size: 17px; }
+  #excursionForm { display: flex; flex-direction: column; overflow: hidden; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 20px; overflow-y: auto; }
+  .form-grid .full { grid-column: 1 / -1; }
+  .form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 500; }
+  .modal-footer { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); background: #f8fafc; border-radius: 0 0 var(--radius) var(--radius); }
+  .modal-footer .spacer { flex: 1; }
+
+  .chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; min-height: 300px; max-height: 50vh; background: #f8fafc; }
+  .msg { display: flex; }
+  .msg-user { justify-content: flex-end; }
+  .msg-bubble { max-width: 85%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+  .msg-user .msg-bubble { background: var(--primary); color: white; border-bottom-right-radius: 4px; }
+  .msg-assistant .msg-bubble { background: white; border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .msg-error .msg-bubble { background: var(--danger-light); color: var(--danger); border: 1px solid #fecaca; }
+  .chat-input-row { display: flex; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); background: white; align-items: flex-end; }
+  .chat-input-row textarea { flex: 1; resize: none; max-height: 120px; min-height: 42px; }
+  .mic-btn { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border); background: white; cursor: pointer; font-size: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .mic-btn.recording { background: var(--danger-light); border-color: var(--danger); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.4); } 50% { box-shadow: 0 0 0 8px rgba(220,38,38,0); } }
+  .chat-hint { font-size: 12px; color: var(--muted); padding: 0 20px 10px; background: white; }
+  .settings-hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  @media (max-width: 900px) {
+    .form-row { grid-template-columns: 1fr 1fr; }
+    .form-row button { grid-column: 1 / -1; }
+  }
+  @media (max-width: 640px) {
+    .form-row { grid-template-columns: 1fr; }
+    .form-grid { grid-template-columns: 1fr; }
+    .excursion { flex-wrap: wrap; }
+    .exc-time { min-width: auto; }
+    .header-inner { padding: 10px 14px; }
+    .container { padding: 14px; }
+    .toolbar .btn { padding: 8px 10px; font-size: 13px; }
+    .day-header { padding: 12px 14px; }
+    .day-title { font-size: 15px; }
+    .chat-messages { max-height: 40vh; }
+    .budget-stats { grid-template-columns: 1fr; }
+    .budget-summary-box { grid-template-columns: 1fr; }
+    .budget-modal-top { grid-template-columns: 1fr; }
+    .expense-row, .expense-add-row { grid-template-columns: 1fr 1fr; }
+    .expense-row .icon-btn { grid-column: 1 / -1; justify-self: end; }
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-icon">✈️</div>
+      <div>
+        <h1 id="tripTitle">Планировщик поездки</h1>
+        <p id="tripSubtitle" class="subtitle">Выберите город и даты</p>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button class="btn btn-ghost" id="btnBudget" title="Бюджет">💰 Бюджет</button>
+      <button class="btn btn-ghost" id="btnAiChat" title="ИИ-помощник">🤖 ИИ</button>
+      <button class="btn btn-ghost" id="btnAiSettings" title="Настройки DeepSeek">⚙️</button>
+      <button class="btn btn-ghost" id="btnSample" title="Готовый пример">✨ Пример</button>
+      <button class="btn btn-ghost" id="btnExport" title="Скачать JSON">⬇</button>
+      <button class="btn btn-ghost" id="btnImport" title="Загрузить JSON">⬆</button>
+      <input type="file" id="fileInput" accept="application/json" hidden>
+      <button class="btn btn-primary" id="btnAdd">+ Экскурсия</button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <section class="trip-setup" id="tripSetup">
+    <h2>Параметры поездки</h2>
+    <div class="form-row">
+      <label>Город
+        <input type="text" id="inputCity" list="citySuggestions" placeholder="Введите или выберите" autocomplete="off">
+        <datalist id="citySuggestions"></datalist>
+      </label>
+      <label>Название поездки
+        <input type="text" id="inputTitle" placeholder="Например: Майские праздники">
+      </label>
+      <label>Дата начала
+        <input type="date" id="inputStart">
+      </label>
+      <label>Дата окончания
+        <input type="date" id="inputEnd">
+      </label>
+      <button class="btn btn-primary" id="btnSaveTrip">Применить</button>
+    </div>
+    <div class="city-hint">Каталог экскурсий и готовый пример маршрута подбираются под город. План, бюджет и расходы хранятся отдельно для каждого города.</div>
+  </section>
+
+  <section class="budget-card" id="budgetCard" hidden>
+    <div class="budget-header">
+      <div>
+        <div class="budget-title">💰 Бюджет поездки</div>
+        <div class="budget-sub" id="budgetSub">—</div>
+      </div>
+      <button class="btn btn-ghost" id="btnOpenBudget">Настроить →</button>
+    </div>
+    <div class="budget-stats">
+      <div class="budget-stat"><div class="label">Бюджет</div><div class="value" id="bcTotal">—</div></div>
+      <div class="budget-stat"><div class="label">Потрачено</div><div class="value" id="bcSpent">—</div></div>
+      <div class="budget-stat"><div class="label">Осталось</div><div class="value" id="bcRemaining">—</div></div>
+    </div>
+    <div class="budget-progress"><div class="budget-progress-bar" id="bcBar"></div></div>
+  </section>
+
+  <section id="daysContainer" class="days-container"></section>
+
+  <div id="emptyState" class="empty-state" hidden>
+    <div class="big">🌍</div>
+    <p>Введите город выше или выберите из подсказок, чтобы начать планирование.</p>
+  </div>
+</main>
+
+<!-- Modal: Excursion -->
+<div class="modal-overlay" id="modalOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2 id="modalTitle">Новая экскурсия</h2>
+      <button class="icon-btn" id="btnCloseModal" aria-label="Закрыть">✕</button>
+    </div>
+    <form id="excursionForm">
+      <input type="hidden" id="fieldId">
+      <div class="form-grid">
+        <label class="full">Каталог экскурсий
+          <select id="catalogSelect"></select>
+        </label>
+        <label class="full">Название *
+          <input type="text" id="fieldTitle" required>
+        </label>
+        <label>Дата *
+          <select id="fieldDate" required></select>
+        </label>
+        <label>Время
+          <input type="time" id="fieldTime">
+        </label>
+        <label>Длительность
+          <input type="text" id="fieldDuration" placeholder="2 ч">
+        </label>
+        <label>Категория
+          <select id="fieldCategory">
+            <option>Музей</option><option>Дворец</option><option>Собор</option>
+            <option>Прогулка</option><option>Парк</option><option>Крепость</option>
+            <option>Театр</option><option>Развлечение</option><option>Еда</option><option>Другое</option>
+          </select>
+        </label>
+        <label class="full">Место
+          <input type="text" id="fieldPlace">
+        </label>
+        <label>Стоимость
+          <input type="number" id="fieldCost" min="0" step="1" placeholder="0">
+        </label>
+        <label>Статус
+          <select id="fieldStatus">
+            <option value="planned">Запланировано</option>
+            <option value="booked">Забронировано</option>
+            <option value="done">Посещено</option>
+            <option value="cancelled">Отменено</option>
+          </select>
+        </label>
+        <label class="full">Ссылка
+          <input type="url" id="fieldLink" placeholder="https://">
+        </label>
+        <label class="full">Заметки
+          <textarea id="fieldNotes" rows="3"></textarea>
+        </label>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" id="btnDelete" hidden>Удалить</button>
+        <div class="spacer"></div>
+        <button type="button" class="btn btn-ghost" id="btnCancel">Отмена</button>
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Budget -->
+<div class="modal-overlay" id="budgetOverlay" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2>💰 Бюджет поездки</h2>
+      <button class="icon-btn" id="btnCloseBudget" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="budget-modal-body">
+      <div class="budget-modal-top">
+        <label>Общий бюджет
+          <input type="number" id="budgetTotalInput" min="0" step="100" placeholder="0">
+        </label>
+        <label>Валюта
+          <select id="budgetCurrency">
+            <option>₽</option><option>$</option><option>€</option>
+            <option>₸</option><option>₴</option><option>¥</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="budget-summary-box">
+        <div class="budget-stat"><div class="label">Бюджет</div><div class="value" id="bmTotal">—</div></div>
+        <div class="budget-stat"><div class="label">Потрачено</div><div class="value" id="bmSpent">—</div></div>
+        <div class="budget-stat"><div class="label">Осталось</div><div class="value" id="bmRemaining">—</div></div>
+      </div>
+
+      <div class="budget-section">
+        <h3>Расходы по категориям</h3>
+        <div id="breakdownList"></div>
+      </div>
+
+      <div class="budget-section">
+        <h3>Дополнительные расходы</h3>
+        <div class="expenses-list" id="expensesList"></div>
+        <div class="expense-add-row">
+          <input type="text" id="newExpenseTitle" placeholder="Название расхода">
+          <select id="newExpenseCategory">
+            <option>Проживание</option><option>Транспорт</option>
+            <option>Питание</option><option>Билеты</option>
+            <option>Сувениры</option><option>Разное</option>
+          </select>
+          <input type="number" id="newExpenseCost" min="0" step="1" placeholder="Сумма">
+          <button class="btn btn-primary" id="btnAddExpense">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: AI Settings -->
+<div class="modal-overlay" id="aiSettingsOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2>Настройки DeepSeek</h2>
+      <button class="icon-btn" id="btnCloseAiSettings" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="form-grid" style="padding: 20px;">
+      <label class="full">API-ключ DeepSeek
+        <input type="password" id="aiKey" placeholder="sk-...">
+      </label>
+      <label class="full">Модель
+        <select id="aiModel">
+          <option value="deepseek-flash">deepseek-flash (рекомендуется)</option>
+          <option value="deepseek-v4-pro">deepseek-v4-pro</option>
+        </select>
+      </label>
+      <label class="full">Base URL
+        <input type="text" id="aiBaseUrl" placeholder="https://api.deepseek.com">
+      </label>
+      <div class="full settings-hint">
+        Ключ хранится только в этом браузере (localStorage). Не используйте на чужих устройствах.
+        Если появляется ошибка CORS — укажите адрес вашего прокси в поле Base URL.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="btnClearAiSettings">Очистить</button>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost" id="btnCancelAiSettings">Отмена</button>
+      <button class="btn btn-primary" id="btnSaveAiSettings">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: AI Chat -->
+<div class="modal-overlay" id="aiChatOverlay" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2>🤖 ИИ-помощник по поездке</h2>
+      <button class="icon-btn" id="btnCloseAiChat" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-hint" id="chatHint"></div>
+    <div class="chat-input-row">
+      <textarea id="chatInput" rows="1" placeholder="Напишите вопрос или задачу..."></textarea>
+      <button class="mic-btn" id="micBtn" title="Голосовой ввод">🎤</button>
+      <button class="btn btn-primary" id="btnSendChat">➤</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const STORAGE_KEY = 'trip-planner-v4';
+  const OLD_STORAGE_KEY = 'trip-planner-v3';
+  const AI_SETTINGS_KEY = 'spb-ai-settings-v1';
+  const EXPENSE_CATEGORIES = ['Проживание', 'Транспорт', 'Питание', 'Билеты', 'Сувениры', 'Разное'];
+
+  const CITY_PRESETS = {
+    'Санкт-Петербург': {
+      catalog: [
+        { title: 'Эрмитаж', place: 'Дворцовая пл., 2', category: 'Музей', duration: '3–4 ч', notes: 'Билеты онлайн заранее. Выходной — понедельник.' },
+        { title: 'Русский музей', place: 'Инженерная ул., 4', category: 'Музей', duration: '2–3 ч', notes: 'Выходной — вторник.' },
+        { title: 'Петергоф', place: 'г. Петергоф, Разводная ул., 2', category: 'Дворец', duration: '5–6 ч', notes: 'Метеор от Дворцовой набережной. Фонтаны в сезон.' },
+        { title: 'Царское Село (Екатерининский дворец)', place: 'г. Пушкин, Садовая ул., 7', category: 'Дворец', duration: '4–5 ч', notes: 'Янтарная комната. Выходной — вторник.' },
+        { title: 'Юсуповский дворец', place: 'наб. реки Мойки, 94', category: 'Дворец', duration: '2 ч' },
+        { title: 'Крейсер «Аврора»', place: 'Петроградская наб.', category: 'Музей', duration: '1 ч' },
+        { title: 'Гранд Макет Россия', place: 'Цветочная ул., 16', category: 'Музей', duration: '1.5–2 ч' },
+        { title: 'Музей «Эрарта»', place: '29-я линия В.О., 2', category: 'Музей', duration: '2 ч', notes: 'Современное искусство' },
+        { title: 'Исаакиевский собор', place: 'Исаакиевская пл., 4', category: 'Собор', duration: '1.5 ч', notes: 'Колоннада. Выходной — среда.' },
+        { title: 'Спас на Крови', place: 'наб. канала Грибоедова, 2Б', category: 'Собор', duration: '1–1.5 ч', notes: 'Выходной — среда.' },
+        { title: 'Казанский собор', place: 'Казанская пл., 2', category: 'Собор', duration: '1 ч' },
+        { title: 'Смольный собор', place: 'пл. Растрелли, 1', category: 'Собор', duration: '1 ч', notes: 'Можно на звонницу' },
+        { title: 'Петропавловская крепость', place: 'Заячий остров', category: 'Крепость', duration: '2–3 ч', notes: 'Выходной — среда, летом без выходных.' },
+        { title: 'Стрелка Васильевского острова', place: 'Биржевая пл.', category: 'Прогулка', duration: '1 ч' },
+        { title: 'Кронштадт', place: 'г. Кронштадт', category: 'Прогулка', duration: '5–6 ч' },
+        { title: 'Летний сад', place: 'Летний сад', category: 'Парк', duration: '1.5 ч' },
+        { title: 'Новая Голландия', place: 'наб. Адмиралтейского канала, 2', category: 'Парк', duration: '2 ч' },
+        { title: 'Прогулка по Невскому проспекту', place: 'Невский пр.', category: 'Прогулка', duration: '2 ч' },
+        { title: 'Развод мостов', place: 'Дворцовая наб.', category: 'Прогулка', duration: '1.5 ч', notes: 'Ночью, около 01:00–02:00. Сезон навигации.' },
+        { title: 'Экскурсия по метро', place: 'Станции «Автово», «Площадь Восстания»', category: 'Прогулка', duration: '1.5 ч' },
+        { title: 'Мариинский театр', place: 'Театральная пл., 1', category: 'Театр', duration: '3 ч', notes: 'Билеты за месяц и раньше' },
+      ],
+      samplePlan: (startISO) => {
+        const day = (o) => { const d = new Date(startISO + 'T00:00:00'); d.setDate(d.getDate() + o); return toISO(d); };
+        return [
+          { date: day(0), time: '10:00', title: 'Эрмитаж', place: 'Дворцовая пл., 2', category: 'Музей', duration: '3–4 ч', notes: 'Билеты онлайн заранее.', status: 'planned', cost: 0 },
+          { date: day(0), time: '14:30', title: 'Прогулка по Невскому проспекту', place: 'Невский пр.', category: 'Прогулка', duration: '2 ч', status: 'planned', cost: 0 },
+          { date: day(0), time: '16:30', title: 'Казанский собор', place: 'Казанская пл., 2', category: 'Собор', duration: '1 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '10:00', title: 'Петропавловская крепость', place: 'Заячий остров', category: 'Крепость', duration: '2–3 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '13:30', title: 'Крейсер «Аврора»', place: 'Петроградская наб.', category: 'Музей', duration: '1 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '15:30', title: 'Стрелка Васильевского острова', place: 'Биржевая пл.', category: 'Прогулка', duration: '1 ч', status: 'planned', cost: 0 },
+          { date: day(2), time: '10:30', title: 'Исаакиевский собор', place: 'Исаакиевская пл., 4', category: 'Собор', duration: '1.5 ч', status: 'planned', cost: 0 },
+          { date: day(2), time: '13:00', title: 'Спас на Крови', place: 'наб. канала Грибоедова, 2Б', category: 'Собор', duration: '1–1.5 ч', status: 'planned', cost: 0 },
+          { date: day(2), time: '15:30', title: 'Летний сад', place: 'Летний сад', category: 'Парк', duration: '1.5 ч', status: 'planned', cost: 0 },
+          { date: day(3), time: '09:30', title: 'Петергоф', place: 'г. Петергоф', category: 'Дворец', duration: '5–6 ч', notes: 'Метеор. Фонтаны в сезон.', status: 'planned', cost: 0 },
+          { date: day(4), time: '10:30', title: 'Русский музей', place: 'Инженерная ул., 4', category: 'Музей', duration: '2–3 ч', status: 'planned', cost: 0 },
+          { date: day(4), time: '15:00', title: 'Новая Голландия', place: 'наб. Адмиралтейского канала, 2', category: 'Парк', duration: '2 ч', status: 'planned', cost: 0 },
+          { date: day(4), time: '23:30', title: 'Развод мостов', place: 'Дворцовая наб.', category: 'Прогулка', duration: '1.5 ч', notes: 'Ночью.', status: 'planned', cost: 0 },
+        ];
+      },
+    },
+    'Москва': {
+      catalog: [
+        { title: 'Красная площадь', place: 'Красная пл.', category: 'Прогулка', duration: '1 ч' },
+        { title: 'Московский Кремль', place: 'Кремль', category: 'Крепость', duration: '3 ч', notes: 'Выходной — четверг.' },
+        { title: 'Третьяковская галерея', place: 'Лаврушинский пер., 10', category: 'Музей', duration: '2–3 ч', notes: 'Выходной — понедельник.' },
+        { title: 'Пушкинский музей', place: 'ул. Волхонка, 12', category: 'Музей', duration: '2–3 ч', notes: 'Выходной — понедельник.' },
+        { title: 'Храм Христа Спасителя', place: 'ул. Волхонка, 15', category: 'Собор', duration: '1 ч' },
+        { title: 'Парк Зарядье', place: 'ул. Варварка, 6', category: 'Парк', duration: '2 ч' },
+        { title: 'Парк Горького', place: 'Крымский Вал, 9', category: 'Парк', duration: '2 ч' },
+        { title: 'ВДНХ', place: 'просп. Мира, 119', category: 'Прогулка', duration: '3 ч' },
+        { title: 'Останкинская башня', place: 'ул. Академика Королёва, 15', category: 'Развлечение', duration: '1.5 ч' },
+        { title: 'Арбат', place: 'ул. Арбат', category: 'Прогулка', duration: '2 ч' },
+        { title: 'Большой театр', place: 'Театральная пл., 1', category: 'Театр', duration: '3 ч' },
+        { title: 'Воробьёвы горы', place: 'Воробьёвы горы', category: 'Прогулка', duration: '1.5 ч' },
+      ],
+      samplePlan: (startISO) => {
+        const day = (o) => { const d = new Date(startISO + 'T00:00:00'); d.setDate(d.getDate() + o); return toISO(d); };
+        return [
+          { date: day(0), time: '10:00', title: 'Московский Кремль', place: 'Кремль', category: 'Крепость', duration: '3 ч', status: 'planned', cost: 0 },
+          { date: day(0), time: '13:30', title: 'Красная площадь', place: 'Красная пл.', category: 'Прогулка', duration: '1 ч', status: 'planned', cost: 0 },
+          { date: day(0), time: '15:00', title: 'Парк Зарядье', place: 'ул. Варварка, 6', category: 'Парк', duration: '2 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '10:00', title: 'Третьяковская галерея', place: 'Лаврушинский пер., 10', category: 'Музей', duration: '2–3 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '14:00', title: 'Арбат', place: 'ул. Арбат', category: 'Прогулка', duration: '2 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '16:30', title: 'Храм Христа Спасителя', place: 'ул. Волхонка, 15', category: 'Собор', duration: '1 ч', status: 'planned', cost: 0 },
+          { date: day(2), time: '10:00', title: 'ВДНХ', place: 'просп. Мира, 119', category: 'Прогулка', duration: '3 ч', status: 'planned', cost: 0 },
+          { date: day(2), time: '14:00', title: 'Останкинская башня', place: 'ул. Академика Королёва, 15', category: 'Развлечение', duration: '1.5 ч', status: 'planned', cost: 0 },
+          { date: day(2), time: '16:30', title: 'Воробьёвы горы', place: 'Воробьёвы горы', category: 'Прогулка', duration: '1.5 ч', status: 'planned', cost: 0 },
+        ];
+      },
+    },
+    'Казань': {
+      catalog: [
+        { title: 'Казанский Кремль', place: 'Кремль', category: 'Крепость', duration: '2 ч' },
+        { title: 'Мечеть Кул-Шариф', place: 'Казанский Кремль', category: 'Собор', duration: '1 ч' },
+        { title: 'Улица Баумана', place: 'ул. Баумана', category: 'Прогулка', duration: '2 ч' },
+        { title: 'Дворец земледельцев', place: 'ул. Федосеевская, 36', category: 'Прогулка', duration: '0.5 ч' },
+        { title: 'Храм всех религий', place: 'пос. Старое Аракчино', category: 'Собор', duration: '1 ч' },
+        { title: 'Кремлёвская набережная', place: 'Кремлёвская наб.', category: 'Прогулка', duration: '1.5 ч' },
+        { title: 'Старо-Татарская слобода', place: 'ул. Марджани', category: 'Прогулка', duration: '2 ч' },
+        { title: 'Национальный музей РТ', place: 'ул. Кремлёвская, 2', category: 'Музей', duration: '2 ч' },
+      ],
+      samplePlan: (startISO) => {
+        const day = (o) => { const d = new Date(startISO + 'T00:00:00'); d.setDate(d.getDate() + o); return toISO(d); };
+        return [
+          { date: day(0), time: '10:00', title: 'Казанский Кремль', place: 'Кремль', category: 'Крепость', duration: '2 ч', status: 'planned', cost: 0 },
+          { date: day(0), time: '12:30', title: 'Мечеть Кул-Шариф', place: 'Казанский Кремль', category: 'Собор', duration: '1 ч', status: 'planned', cost: 0 },
+          { date: day(0), time: '14:30', title: 'Улица Баумана', place: 'ул. Баумана', category: 'Прогулка', duration: '2 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '10:00', title: 'Храм всех религий', place: 'пос. Старое Аракчино', category: 'Собор', duration: '1 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '14:00', title: 'Кремлёвская набережная', place: 'Кремлёвская наб.', category: 'Прогулка', duration: '1.5 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '16:30', title: 'Старо-Татарская слобода', place: 'ул. Марджани', category: 'Прогулка', duration: '2 ч', status: 'planned', cost: 0 },
+        ];
+      },
+    },
+    'Сочи': {
+      catalog: [
+        { title: 'Олимпийский парк', place: 'Адлер', category: 'Прогулка', duration: '3 ч' },
+        { title: 'Красная Поляна', place: 'Красная Поляна', category: 'Прогулка', duration: '6 ч' },
+        { title: 'Сочинский дендрарий', place: 'Курортный пр., 74', category: 'Парк', duration: '2–3 ч' },
+        { title: 'Парк «Ривьера»', place: 'ул. Егорова, 1', category: 'Парк', duration: '2 ч' },
+        { title: 'Смотровая башня Ахун', place: 'г. Большой Ахун', category: 'Прогулка', duration: '2 ч' },
+        { title: 'Сочи Парк', place: 'Адлер', category: 'Развлечение', duration: '4–6 ч' },
+        { title: 'Набережная Сочи', place: 'Приморская наб.', category: 'Прогулка', duration: '1.5 ч' },
+      ],
+      samplePlan: (startISO) => {
+        const day = (o) => { const d = new Date(startISO + 'T00:00:00'); d.setDate(d.getDate() + o); return toISO(d); };
+        return [
+          { date: day(0), time: '10:00', title: 'Сочинский дендрарий', place: 'Курортный пр., 74', category: 'Парк', duration: '2–3 ч', status: 'planned', cost: 0 },
+          { date: day(0), time: '14:00', title: 'Набережная Сочи', place: 'Приморская наб.', category: 'Прогулка', duration: '1.5 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '09:00', title: 'Красная Поляна', place: 'Красная Поляна', category: 'Прогулка', duration: '6 ч', status: 'planned', cost: 0 },
+          { date: day(2), time: '10:00', title: 'Олимпийский парк', place: 'Адлер', category: 'Прогулка', duration: '3 ч', status: 'planned', cost: 0 },
+          { date: day(2), time: '14:00', title: 'Сочи Парк', place: 'Адлер', category: 'Развлечение', duration: '4–6 ч', status: 'planned', cost: 0 },
+          { date: day(3), time: '10:00', title: 'Смотровая башня Ахун', place: 'г. Большой Ахун', category: 'Прогулка', duration: '2 ч', status: 'planned', cost: 0 },
+        ];
+      },
+    },
+    'Екатеринбург': {
+      catalog: [
+        { title: 'Плотинка', place: 'Плотинка', category: 'Прогулка', duration: '1 ч' },
+        { title: 'Храм на Крови', place: 'ул. Царская, 10', category: 'Собор', duration: '1 ч' },
+        { title: 'Ельцин-центр', place: 'ул. Бориса Ельцина, 3', category: 'Музей', duration: '2 ч' },
+        { title: 'Улица Вайнера', place: 'ул. Вайнера', category: 'Прогулка', duration: '1 ч' },
+        { title: 'Музей ИЗО', place: 'ул. Воеводина, 5', category: 'Музей', duration: '1.5 ч' },
+        { title: 'БЦ «Высоцкий»', place: 'ул. Малышева, 51', category: 'Развлечение', duration: '1 ч' },
+        { title: 'Литературный квартал', place: 'ул. Пролетарская, 14', category: 'Прогулка', duration: '1.5 ч' },
+      ],
+      samplePlan: (startISO) => {
+        const day = (o) => { const d = new Date(startISO + 'T00:00:00'); d.setDate(d.getDate() + o); return toISO(d); };
+        return [
+          { date: day(0), time: '10:00', title: 'Плотинка', place: 'Плотинка', category: 'Прогулка', duration: '1 ч', status: 'planned', cost: 0 },
+          { date: day(0), time: '11:30', title: 'Храм на Крови', place: 'ул. Царская, 10', category: 'Собор', duration: '1 ч', status: 'planned', cost: 0 },
+          { date: day(0), time: '14:00', title: 'Ельцин-центр', place: 'ул. Бориса Ельцина, 3', category: 'Музей', duration: '2 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '10:00', title: 'Музей ИЗО', place: 'ул. Воеводина, 5', category: 'Музей', duration: '1.5 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '14:00', title: 'Литературный квартал', place: 'ул. Пролетарская, 14', category: 'Прогулка', duration: '1.5 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '16:30', title: 'БЦ «Высоцкий»', place: 'ул. Малышева, 51', category: 'Развлечение', duration: '1 ч', status: 'planned', cost: 0 },
+        ];
+      },
+    },
+    'Нижний Новгород': {
+      catalog: [
+        { title: 'Нижегородский кремль', place: 'Кремль', category: 'Крепость', duration: '2 ч' },
+        { title: 'Чкаловская лестница', place: 'Нижневолжская наб.', category: 'Прогулка', duration: '0.5 ч' },
+        { title: 'Большая Покровская', place: 'ул. Б. Покровская', category: 'Прогулка', duration: '2 ч' },
+        { title: 'Стрелка', place: 'Стрелка', category: 'Прогулка', duration: '1.5 ч' },
+        { title: 'Канатная дорога', place: 'Нижний Новгород — Бор', category: 'Развлечение', duration: '1.5 ч' },
+        { title: 'Рождественская улица', place: 'ул. Рождественская', category: 'Прогулка', duration: '1.5 ч' },
+        { title: 'Пакгаузы', place: 'Стрелка', category: 'Музей', duration: '1.5 ч' },
+      ],
+      samplePlan: (startISO) => {
+        const day = (o) => { const d = new Date(startISO + 'T00:00:00'); d.setDate(d.getDate() + o); return toISO(d); };
+        return [
+          { date: day(0), time: '10:00', title: 'Нижегородский кремль', place: 'Кремль', category: 'Крепость', duration: '2 ч', status: 'planned', cost: 0 },
+          { date: day(0), time: '13:00', title: 'Чкаловская лестница', place: 'Нижневолжская наб.', category: 'Прогулка', duration: '0.5 ч', status: 'planned', cost: 0 },
+          { date: day(0), time: '15:00', title: 'Большая Покровская', place: 'ул. Б. Покровская', category: 'Прогулка', duration: '2 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '10:00', title: 'Стрелка', place: 'Стрелка', category: 'Прогулка', duration: '1.5 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '12:00', title: 'Пакгаузы', place: 'Стрелка', category: 'Музей', duration: '1.5 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '14:30', title: 'Канатная дорога', place: 'Нижний Новгород — Бор', category: 'Развлечение', duration: '1.5 ч', status: 'planned', cost: 0 },
+          { date: day(1), time: '17:00', title: 'Рождественская улица', place: 'ул. Рождественская', category: 'Прогулка', duration: '1.5 ч', status: 'planned', cost: 0 },
+        ];
+      },
+    },
+  };
+
+  const STATUS_LABELS = {
+    planned:   { label: 'Запланировано', class: 'status-planned' },
+    booked:    { label: 'Забронировано', class: 'status-booked' },
+    done:      { label: 'Посещено',      class: 'status-done' },
+    cancelled: { label: 'Отменено',      class: 'status-cancelled' },
+  };
+
+  let appData = { plans: {}, activeCity: '' };
+  let state = null;
+  let aiSettings = { apiKey: '', model: 'deepseek-flash', baseUrl: 'https://api.deepseek.com' };
+
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const toISO = (d) => { const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); return `${y}-${m}-${dd}`; };
+  const escapeHTML = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const plural = (n, forms) => { const m10 = n % 10, m100 = n % 100; if (m10 === 1 && m100 !== 11) return forms[0]; if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return forms[1]; return forms[2]; };
+  const formatMoney = (amount, currency = '₽') => {
+    const n = Number(amount) || 0;
+    return n.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) + ' ' + currency;
+  };
+
+  function emptyPlan(city = '') {
+    return {
+      trip: { title: city, city, startDate: '', endDate: '', budget: { total: 0, currency: '₽' } },
+      excursions: [],
+      expenses: [],
+    };
+  }
+
+  function normalizePlan(plan) {
+    if (!plan || typeof plan !== 'object') plan = emptyPlan();
+    plan.trip = plan.trip || {};
+    plan.trip.budget = { total: 0, currency: '₽', ...(plan.trip.budget || {}) };
+    plan.trip.budget.total = Number(plan.trip.budget.total) || 0;
+    plan.excursions = Array.isArray(plan.excursions) ? plan.excursions.map(e => ({ ...e, cost: Number(e.cost) || 0 })) : [];
+    plan.expenses = Array.isArray(plan.expenses) ? plan.expenses.map(e => ({
+      id: e.id || uid(),
+      title: e.title || '',
+      category: EXPENSE_CATEGORIES.includes(e.category) ? e.category : 'Разное',
+      cost: Number(e.cost) || 0,
+    })) : [];
+    return plan;
+  }
+
+  function generateDays() {
+    if (!state) return [];
+    const { startDate, endDate } = state.trip;
+    if (!startDate || !endDate || startDate > endDate) return [];
+    const days = []; const d = new Date(startDate + 'T00:00:00'); const end = new Date(endDate + 'T00:00:00');
+    while (d <= end) { days.push(toISO(d)); d.setDate(d.getDate() + 1); }
+    return days;
+  }
+
+  const WEEKDAYS = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+  const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  const formatDayHeader = (iso, i) => { const d = new Date(iso + 'T00:00:00'); return `День ${i + 1} · ${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
+  const formatDayOption = (iso, i) => { const d = new Date(iso + 'T00:00:00'); return `День ${i + 1} · ${d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}`; };
+  const formatShort = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+
+  function calcTotals(plan) {
+    const cur = plan.trip?.budget?.currency || '₽';
+    const excursionTotal = (plan.excursions || [])
+      .filter(e => e.status !== 'cancelled')
+      .reduce((s, e) => s + (Number(e.cost) || 0), 0);
+    const expenseTotal = (plan.expenses || []).reduce((s, e) => s + (Number(e.cost) || 0), 0);
+    const spent = excursionTotal + expenseTotal;
+    const total = Number(plan.trip?.budget?.total) || 0;
+    return { excursionTotal, expenseTotal, spent, total, remaining: total - spent, currency: cur };
+  }
+
+  /* ---------- Storage ---------- */
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(OLD_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && parsed.plans && typeof parsed.plans === 'object') {
+          appData.plans = parsed.plans;
+          Object.keys(appData.plans).forEach(k => normalizePlan(appData.plans[k]));
+          appData.activeCity = parsed.activeCity || Object.keys(appData.plans)[0] || '';
+        }
+      }
+    } catch (e) { console.warn('Storage error:', e); }
+
+    if (appData.activeCity && appData.plans[appData.activeCity]) {
+      state = appData.plans[appData.activeCity];
+    } else {
+      state = emptyPlan();
+    }
+
+    try {
+      const aiRaw = localStorage.getItem(AI_SETTINGS_KEY);
+      if (aiRaw) {
+        const p = JSON.parse(aiRaw);
+        if (p && typeof p === 'object') aiSettings = { ...aiSettings, ...p };
+      }
+    } catch (e) {}
+  }
+
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); }
+    catch (e) { console.error('Save error:', e); }
+  }
+  function saveAiSettings() {
+    try { localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(aiSettings)); } catch (e) {}
+  }
+
+  function switchCity(city) {
+    city = city.trim();
+    if (!city) return;
+    if (!appData.plans[city]) appData.plans[city] = emptyPlan(city);
+    appData.activeCity = city;
+    state = appData.plans[city];
+    save();
+    populateCatalog();
+    populateCitySuggestions();
+  }
+
+  /* ---------- UI refs ---------- */
+  const daysContainer = document.getElementById('daysContainer');
+  const emptyState = document.getElementById('emptyState');
+  const budgetCard = document.getElementById('budgetCard');
+  const inputCity = document.getElementById('inputCity');
+  const inputTitle = document.getElementById('inputTitle');
+  const inputStart = document.getElementById('inputStart');
+  const inputEnd = document.getElementById('inputEnd');
+
+  function populateCitySuggestions() {
+    const all = [...new Set([...Object.keys(CITY_PRESETS), ...Object.keys(appData.plans)])];
+    document.getElementById('citySuggestions').innerHTML = all.map(c => `<option value="${escapeHTML(c)}">`).join('');
+  }
+
+  function getActiveCatalog() { return CITY_PRESETS[appData.activeCity]?.catalog || []; }
+
+  /* ---------- Render main ---------- */
+  function render() {
+    const city = state.trip.city || appData.activeCity || '';
+    const title = state.trip.title || city || 'Планировщик поездки';
+    document.getElementById('tripTitle').textContent = title;
+
+    const sub = document.getElementById('tripSubtitle');
+    if (state.trip.startDate && state.trip.endDate) {
+      const days = generateDays();
+      sub.textContent = `${city ? city + ' · ' : ''}${formatShort(state.trip.startDate)} — ${formatShort(state.trip.endDate)} · ${days.length} ${plural(days.length, ['день','дня','дней'])}`;
+    } else if (city) {
+      sub.textContent = `${city} · укажите даты поездки`;
+    } else {
+      sub.textContent = 'Выберите город и даты';
+    }
+
+    inputCity.value = city;
+    inputTitle.value = state.trip.title || '';
+    inputStart.value = state.trip.startDate || '';
+    inputEnd.value = state.trip.endDate || '';
+
+    const days = generateDays();
+    if (days.length === 0) {
+      daysContainer.innerHTML = '';
+      emptyState.hidden = false;
+      budgetCard.hidden = true;
+      return;
+    }
+    emptyState.hidden = true;
+    budgetCard.hidden = false;
+    renderBudgetCard();
+    daysContainer.innerHTML = days.map((iso, i) => renderDay(iso, i)).join('');
+    populateCitySuggestions();
+  }
+
+  function renderDay(iso, index) {
+    const items = state.excursions.filter(e => e.date === iso).sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
+    const body = items.length ? items.map(renderExcursion).join('') : '<div class="day-empty">Пока ничего не запланировано</div>';
+    const daySpent = items.filter(e => e.status !== 'cancelled').reduce((s, e) => s + (Number(e.cost) || 0), 0);
+    const cur = state.trip.budget.currency || '₽';
+    const meta = `${items.length} ${plural(items.length, ['экскурсия','экскурсии','экскурсий'])}${daySpent > 0 ? ' · ' + formatMoney(daySpent, cur) : ''}`;
+    return `
+      <div class="day-card" data-date="${iso}">
+        <div class="day-header">
+          <div>
+            <div class="day-title">${formatDayHeader(iso, index)}</div>
+            <div class="day-meta">${meta}</div>
+          </div>
+          <button class="btn btn-light" data-action="add" data-date="${iso}">+ Добавить</button>
+        </div>
+        <div class="day-body">${body}</div>
+      </div>`;
+  }
+
+  function renderExcursion(exc) {
+    const st = STATUS_LABELS[exc.status] || STATUS_LABELS.planned;
+    const cur = state.trip.budget.currency || '₽';
+    const cost = Number(exc.cost) || 0;
+    const time = exc.time ? `<div class="exc-time">${escapeHTML(exc.time)}</div>` : '<div class="exc-time exc-time-empty">—</div>';
+    const place = exc.place ? `<div class="exc-place">📍 ${escapeHTML(exc.place)}</div>` : '';
+    const category = exc.category ? `<span class="chip">${escapeHTML(exc.category)}</span>` : '';
+    const duration = exc.duration ? `<span class="chip chip-muted">⏱ ${escapeHTML(exc.duration)}</span>` : '';
+    const costChip = cost > 0 ? `<span class="chip chip-cost">💰 ${formatMoney(cost, cur)}</span>` : '';
+    const link = exc.link ? `<a class="exc-link" href="${escapeHTML(exc.link)}" target="_blank" rel="noopener">Ссылка ↗</a>` : '';
+    const notes = exc.notes ? `<div class="exc-notes">${escapeHTML(exc.notes)}</div>` : '';
+    return `
+      <div class="excursion" data-id="${exc.id}">
+        ${time}
+        <div class="exc-main">
+          <div class="exc-head">
+            <div class="exc-title">${escapeHTML(exc.title)}</div>
+            <span class="status-badge ${st.class}">${st.label}</span>
+          </div>
+          ${place}
+          <div class="exc-chips">${category}${duration}${costChip}${link}</div>
+          ${notes}
+        </div>
+        <div class="exc-actions">
+          <button class="icon-btn" data-action="edit" data-id="${exc.id}" title="Редактировать">✏️</button>
+          <button class="icon-btn" data-action="delete" data-id="${exc.id}" title="Удалить">🗑️</button>
+        </div>
+      </div>`;
+  }
+
+  /* ---------- Budget card ---------- */
+  function renderBudgetCard() {
+    const t = calcTotals(state);
+    document.getElementById('budgetSub').textContent =
+      t.total > 0
+        ? `${formatMoney(t.spent, t.currency)} из ${formatMoney(t.total, t.currency)}`
+        : 'Бюджет не задан · нажмите «Настроить»';
+
+    document.getElementById('bcTotal').textContent = t.total > 0 ? formatMoney(t.total, t.currency) : '—';
+    document.getElementById('bcSpent').textContent = formatMoney(t.spent, t.currency);
+
+    const rem = document.getElementById('bcRemaining');
+    if (t.total > 0) {
+      rem.textContent = formatMoney(t.remaining, t.currency);
+      rem.className = 'value ' + (t.remaining >= 0 ? 'pos' : 'neg');
+    } else {
+      rem.textContent = '—';
+      rem.className = 'value';
+    }
+
+    const bar = document.getElementById('bcBar');
+    if (t.total > 0) {
+      const pct = Math.min(100, (t.spent / t.total) * 100);
+      bar.style.width = pct + '%';
+      bar.className = 'budget-progress-bar' + (pct >= 100 ? ' over' : pct >= 80 ? ' warn' : '');
+    } else {
+      bar.style.width = '0';
+      bar.className = 'budget-progress-bar';
+    }
+  }
+
+  /* ---------- Excursion modal ---------- */
+  const overlay = document.getElementById('modalOverlay');
+  const form = document.getElementById('excursionForm');
+  const fieldDate = document.getElementById('fieldDate');
+  const catalogSelect = document.getElementById('catalogSelect');
+
+  function populateCatalog() {
+    const catalog = getActiveCatalog();
+    const groups = {};
+    catalog.forEach(c => { (groups[c.category] ||= []).push(c); });
+    catalogSelect.innerHTML =
+      `<option value="">${catalog.length ? '— выберите, чтобы заполнить поля —' : '— каталога нет, заполните вручную —'}</option>` +
+      Object.entries(groups).map(([cat, items]) =>
+        `<optgroup label="${escapeHTML(cat)}">` +
+        items.map(i => `<option value="${escapeHTML(i.title)}">${escapeHTML(i.title)}</option>`).join('') +
+        '</optgroup>'
+      ).join('');
+  }
+
+  function openModal(id = null, presetDate = null) {
+    const isEdit = Boolean(id);
+    document.getElementById('modalTitle').textContent = isEdit ? 'Редактировать экскурсию' : 'Новая экскурсия';
+    document.getElementById('btnDelete').hidden = !isEdit;
+
+    const days = generateDays();
+    if (days.length === 0) { alert('Сначала задайте город и даты поездки.'); return; }
+    fieldDate.innerHTML = days.map((iso, i) => `<option value="${iso}">${formatDayOption(iso, i)}</option>`).join('');
+
+    if (isEdit) {
+      const exc = state.excursions.find(x => x.id === id);
+      if (!exc) return;
+      document.getElementById('fieldId').value = exc.id;
+      document.getElementById('fieldTitle').value = exc.title || '';
+      document.getElementById('fieldDate').value = exc.date || days[0];
+      document.getElementById('fieldTime').value = exc.time || '';
+      document.getElementById('fieldDuration').value = exc.duration || '';
+      document.getElementById('fieldCategory').value = exc.category || 'Музей';
+      document.getElementById('fieldPlace').value = exc.place || '';
+      document.getElementById('fieldCost').value = exc.cost || '';
+      document.getElementById('fieldStatus').value = exc.status || 'planned';
+      document.getElementById('fieldLink').value = exc.link || '';
+      document.getElementById('fieldNotes').value = exc.notes || '';
+    } else {
+      form.reset();
+      document.getElementById('fieldId').value = '';
+      document.getElementById('fieldStatus').value = 'planned';
+      document.getElementById('fieldCategory').value = 'Музей';
+      document.getElementById('fieldCost').value = '';
+      fieldDate.value = (presetDate && days.includes(presetDate)) ? presetDate : days[0];
+    }
+
+    catalogSelect.value = '';
+    overlay.hidden = false;
+    setTimeout(() => document.getElementById('fieldTitle').focus(), 50);
+  }
+
+  function closeModal() { overlay.hidden = true; }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const id = document.getElementById('fieldId').value;
+    const data = {
+      title: document.getElementById('fieldTitle').value.trim(),
+      date: document.getElementById('fieldDate').value,
+      time: document.getElementById('fieldTime').value,
+      duration: document.getElementById('fieldDuration').value.trim(),
+      category: document.getElementById('fieldCategory').value,
+      place: document.getElementById('fieldPlace').value.trim(),
+      cost: Math.max(0, Number(document.getElementById('fieldCost').value) || 0),
+      status: document.getElementById('fieldStatus').value,
+      link: document.getElementById('fieldLink').value.trim(),
+      notes: document.getElementById('fieldNotes').value.trim(),
+    };
+    if (!data.title || !data.date) return;
+    if (id) {
+      const idx = state.excursions.findIndex(x => x.id === id);
+      if (idx >= 0) state.excursions[idx] = { ...state.excursions[idx], ...data };
+    } else {
+      state.excursions.push({ id: uid(), ...data });
+    }
+    save(); closeModal(); render();
+  });
+
+  document.getElementById('btnDelete').addEventListener('click', () => {
+    const id = document.getElementById('fieldId').value;
+    if (!id) return;
+    if (!confirm('Удалить эту экскурсию?')) return;
+    state.excursions = state.excursions.filter(x => x.id !== id);
+    save(); closeModal(); render();
+  });
+
+  catalogSelect.addEventListener('change', () => {
+    const item = getActiveCatalog().find(c => c.title === catalogSelect.value);
+    if (!item) return;
+    document.getElementById('fieldTitle').value = item.title;
+    document.getElementById('fieldPlace').value = item.place || '';
+    document.getElementById('fieldCategory').value = item.category || 'Другое';
+    document.getElementById('fieldDuration').value = item.duration || '';
+    if (item.notes) document.getElementById('fieldNotes').value = item.notes;
+  });
+
+  document.getElementById('btnCloseModal').addEventListener('click', closeModal);
+  document.getElementById('btnCancel').addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) closeModal(); });
+
+  daysContainer.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const { action, id, date } = btn.dataset;
+    if (action === 'add') openModal(null, date);
+    else if (action === 'edit') openModal(id);
+    else if (action === 'delete') deleteExcursion(id);
+  });
+
+  function deleteExcursion(id) {
+    const exc = state.excursions.find(x => x.id === id);
+    if (!exc) return;
+    if (!confirm(`Удалить «${exc.title}»?`)) return;
+    state.excursions = state.excursions.filter(x => x.id !== id);
+    save(); render();
+  }
+
+  /* ---------- Budget modal ---------- */
+  const budgetOverlay = document.getElementById('budgetOverlay');
+  const budgetTotalInput = document.getElementById('budgetTotalInput');
+  const budgetCurrency = document.getElementById('budgetCurrency');
+  const expensesList = document.getElementById('expensesList');
+  const newExpenseTitle = document.getElementById('newExpenseTitle');
+  const newExpenseCategory = document.getElementById('newExpenseCategory');
+  const newExpenseCost = document.getElementById('newExpenseCost');
+
+  function openBudgetModal() {
+    if (!state) { alert('Сначала введите город и даты.'); return; }
+    budgetTotalInput.value = state.trip.budget.total || '';
+    budgetCurrency.value = state.trip.budget.currency || '₽';
+    renderBudgetModalSummary();
+    renderExpensesList();
+    budgetOverlay.hidden = false;
+    setTimeout(() => budgetTotalInput.focus(), 50);
+  }
+  function closeBudgetModal() { budgetOverlay.hidden = true; }
+
+  function renderBudgetModalSummary() {
+    const t = calcTotals(state);
+    document.getElementById('bmTotal').textContent = t.total > 0 ? formatMoney(t.total, t.currency) : '—';
+    document.getElementById('bmSpent').textContent = formatMoney(t.spent, t.currency);
+    const rem = document.getElementById('bmRemaining');
+    if (t.total > 0) {
+      rem.textContent = formatMoney(t.remaining, t.currency);
+      rem.className = 'value ' + (t.remaining >= 0 ? 'pos' : 'neg');
+    } else {
+      rem.textContent = '—';
+      rem.className = 'value';
+    }
+
+    const cats = {};
+    if (t.excursionTotal > 0) cats['Экскурсии'] = t.excursionTotal;
+    (state.expenses || []).forEach(e => {
+      const c = Number(e.cost) || 0;
+      if (c > 0) cats[e.category] = (cats[e.category] || 0) + c;
+    });
+
+    const bd = document.getElementById('breakdownList');
+    const entries = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+    if (entries.length === 0) {
+      bd.innerHTML = '<div class="breakdown-empty">Расходов пока нет. Заполните стоимость экскурсий или добавьте расходы ниже.</div>';
+    } else {
+      const max = Math.max(...entries.map(([, v]) => v));
+      bd.innerHTML = entries.map(([name, cost]) => `
+        <div class="breakdown-item">
+          <span>${escapeHTML(name)}</span>
+          <strong>${formatMoney(cost, t.currency)}</strong>
+          <div class="bar-wrap"><div class="bar" style="width:${(cost / max * 100).toFixed(1)}%"></div></div>
+        </div>`).join('');
+    }
+  }
+
+  function renderExpensesList() {
+    if (!state.expenses || state.expenses.length === 0) {
+      expensesList.innerHTML = '<div class="expense-empty">Дополнительных расходов нет. Добавьте проживание, транспорт, питание и т.д.</div>';
+      return;
+    }
+    expensesList.innerHTML = state.expenses.map(e => `
+      <div class="expense-row" data-id="${e.id}">
+        <input type="text" data-field="title" value="${escapeHTML(e.title)}" placeholder="Название">
+        <select data-field="category">
+          ${EXPENSE_CATEGORIES.map(c => `<option${c === e.category ? ' selected' : ''}>${c}</option>`).join('')}
+        </select>
+        <input type="number" data-field="cost" value="${e.cost || ''}" min="0" step="1" placeholder="0">
+        <button class="icon-btn" data-action="delete-expense" data-id="${e.id}" title="Удалить">🗑️</button>
+      </div>`).join('');
+  }
+
+  document.getElementById('btnOpenBudget').addEventListener('click', openBudgetModal);
+  document.getElementById('btnBudget').addEventListener('click', openBudgetModal);
+  document.getElementById('btnCloseBudget').addEventListener('click', closeBudgetModal);
+  budgetOverlay.addEventListener('click', (e) => { if (e.target === budgetOverlay) closeBudgetModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !budgetOverlay.hidden) closeBudgetModal(); });
+
+  budgetTotalInput.addEventListener('input', () => {
+    state.trip.budget.total = Math.max(0, Number(budgetTotalInput.value) || 0);
+    save(); renderBudgetCard(); renderBudgetModalSummary();
+  });
+  budgetCurrency.addEventListener('change', () => {
+    state.trip.budget.currency = budgetCurrency.value;
+    save(); renderBudgetCard(); renderBudgetModalSummary(); render();
+  });
+
+  expensesList.addEventListener('change', (e) => {
+    const row = e.target.closest('.expense-row');
+    if (!row) return;
+    const exp = state.expenses.find(x => x.id === row.dataset.id);
+    if (!exp) return;
+    const field = e.target.dataset.field;
+    if (field === 'cost') exp.cost = Math.max(0, Number(e.target.value) || 0);
+    else if (field === 'category') exp.category = e.target.value;
+    else if (field === 'title') exp.title = e.target.value;
+    save(); renderBudgetCard(); renderBudgetModalSummary(); render();
+  });
+
+  expensesList.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-action="delete-expense"]');
+    if (!btn) return;
+    if (!confirm('Удалить этот расход?')) return;
+    state.expenses = state.expenses.filter(x => x.id !== btn.dataset.id);
+    save(); renderBudgetCard(); renderExpensesList(); renderBudgetModalSummary(); render();
+  });
+
+  document.getElementById('btnAddExpense').addEventListener('click', () => {
+    const title = newExpenseTitle.value.trim();
+    const cost = Math.max(0, Number(newExpenseCost.value) || 0);
+    if (!title && cost === 0) { alert('Введите название или сумму.'); return; }
+    state.expenses.push({
+      id: uid(),
+      title: title || newExpenseCategory.value,
+      category: newExpenseCategory.value,
+      cost,
+    });
+    newExpenseTitle.value = ''; newExpenseCost.value = '';
+    save(); renderBudgetCard(); renderExpensesList(); renderBudgetModalSummary(); render();
+  });
+
+  /* ---------- Apply trip params ---------- */
+  document.getElementById('btnSaveTrip').addEventListener('click', () => {
+    const city = inputCity.value.trim();
+    const title = inputTitle.value.trim();
+    const startDate = inputStart.value;
+    const endDate = inputEnd.value;
+    if (!city) { alert('Введите город.'); return; }
+    if (!startDate || !endDate) { alert('Укажите даты начала и окончания.'); return; }
+    if (startDate > endDate) { alert('Дата начала должна быть раньше даты окончания.'); return; }
+
+    if (city !== appData.activeCity) switchCity(city);
+    state.trip.title = title || city;
+    state.trip.city = city;
+    state.trip.startDate = startDate;
+    state.trip.endDate = endDate;
+
+    const days = generateDays();
+    const outside = state.excursions.filter(e => !days.includes(e.date));
+    if (outside.length && confirm(`${outside.length} экскурс(ии) вне нового диапазона дат. Удалить их?`)) {
+      state.excursions = state.excursions.filter(e => days.includes(e.date));
+    }
+    save(); render();
+  });
+
+  /* ---------- Sample itinerary ---------- */
+  function loadSampleItinerary() {
+    const city = appData.activeCity;
+    if (!city) { alert('Сначала введите город.'); return; }
+    const preset = CITY_PRESETS[city];
+    if (!preset || !preset.samplePlan) {
+      alert(`Для города «${city}» нет готового примера.\nДобавьте экскурсии вручную или спросите ИИ.`);
+      return;
+    }
+    if (state.excursions.length > 0 && !confirm('Это заменит текущий план экскурсий (бюджет и расходы сохранятся). Продолжить?')) return;
+
+    let start = state.trip.startDate;
+    if (!start) { const d = new Date(); d.setDate(d.getDate() + 1); start = toISO(d); }
+    const plan = preset.samplePlan(start);
+    const maxDay = Math.max(...plan.map(p => Math.floor((new Date(p.date + 'T00:00:00') - new Date(start + 'T00:00:00')) / 86400000)));
+    const endDate = new Date(start + 'T00:00:00');
+    endDate.setDate(endDate.getDate() + maxDay);
+    state.trip.startDate = start;
+    state.trip.endDate = toISO(endDate);
+    if (!state.trip.title) state.trip.title = city;
+    state.trip.city = city;
+    state.excursions = plan.map(p => ({ id: uid(), ...p }));
+    save(); render();
+    alert(`Пример маршрута «${city}» загружен. Заполните стоимость экскурсий и добавьте расходы в блоке «Бюджет».`);
+  }
+
+  /* ---------- Export / Import ---------- */
+  document.getElementById('btnExport').addEventListener('click', () => {
+    const payload = { version: 4, exportedAt: new Date().toISOString(), plans: appData.plans, activeCity: appData.activeCity };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const safeCity = (appData.activeCity || 'trip').replace(/[^\p{L}\p{N}]+/gu, '-').toLowerCase().replace(/^-|-$/g, '');
+    a.href = url; a.download = `${safeCity || 'trip'}-${toISO(new Date())}.json`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('btnImport').addEventListener('click', () => document.getElementById('fileInput').click());
+  document.getElementById('fileInput').addEventListener('change', async (e) => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (!parsed || typeof parsed !== 'object') throw new Error('Неверный формат');
+      if (parsed.plans && typeof parsed.plans === 'object') {
+        if (!confirm('Импорт заменит все сохранённые планы. Продолжить?')) return;
+        appData.plans = parsed.plans;
+        Object.keys(appData.plans).forEach(k => normalizePlan(appData.plans[k]));
+        appData.activeCity = parsed.activeCity && appData.plans[parsed.activeCity] ? parsed.activeCity : Object.keys(appData.plans)[0] || '';
+      } else if (parsed.trip || parsed.excursions) {
+        const city = parsed.trip?.city || parsed.trip?.title || 'Импорт';
+        if (!confirm(`Импортировать как план для «${city}»?`)) return;
+        appData.plans[city] = normalizePlan({
+          trip: { title: parsed.trip?.title || city, city, startDate: parsed.trip?.startDate || '', endDate: parsed.trip?.endDate || '', budget: parsed.trip?.budget },
+          excursions: parsed.excursions || [],
+          expenses: parsed.expenses || [],
+        });
+        appData.activeCity = city;
+      } else {
+        throw new Error('Неизвестный формат');
+      }
+      state = appData.plans[appData.activeCity] || emptyPlan();
+      save(); populateCatalog(); render();
+      alert('Импорт выполнен.');
+    } catch (err) { alert('Ошибка импорта: ' + err.message); }
+  });
+
+  /* ---------- AI Settings ---------- */
+  const aiSettingsOverlay = document.getElementById('aiSettingsOverlay');
+  const aiKeyInput = document.getElementById('aiKey');
+  const aiModelInput = document.getElementById('aiModel');
+  const aiBaseUrlInput = document.getElementById('aiBaseUrl');
+
+  function openAiSettings() {
+    aiKeyInput.value = aiSettings.apiKey;
+    aiModelInput.value = aiSettings.model;
+    aiBaseUrlInput.value = aiSettings.baseUrl;
+    aiSettingsOverlay.hidden = false;
+  }
+  function closeAiSettings() { aiSettingsOverlay.hidden = true; }
+
+  document.getElementById('btnAiSettings').addEventListener('click', openAiSettings);
+  document.getElementById('btnCloseAiSettings').addEventListener('click', closeAiSettings);
+  document.getElementById('btnCancelAiSettings').addEventListener('click', closeAiSettings);
+  document.getElementById('btnClearAiSettings').addEventListener('click', () => {
+    if (!confirm('Очистить сохранённый ключ и настройки?')) return;
+    aiSettings = { apiKey: '', model: 'deepseek-flash', baseUrl: 'https://api.deepseek.com' };
+    saveAiSettings(); openAiSettings();
+  });
+  document.getElementById('btnSaveAiSettings').addEventListener('click', () => {
+    aiSettings.apiKey = aiKeyInput.value.trim();
+    aiSettings.model = aiModelInput.value;
+    aiSettings.baseUrl = aiBaseUrlInput.value.trim() || 'https://api.deepseek.com';
+    saveAiSettings(); closeAiSettings();
+  });
+  aiSettingsOverlay.addEventListener('click', (e) => { if (e.target === aiSettingsOverlay) closeAiSettings(); });
+
+  /* ---------- AI Chat ---------- */
+  const aiChatOverlay = document.getElementById('aiChatOverlay');
+  const chatMessages = document.getElementById('chatMessages');
+  const chatInput = document.getElementById('chatInput');
+  const chatHint = document.getElementById('chatHint');
+  const micBtn = document.getElementById('micBtn');
+  let chatHistory = [];
+
+  function resetChat() {
+    chatMessages.innerHTML = '';
+    const hello = state?.trip?.city
+      ? `Привет! Помогу спланировать поездку в «${state.trip.city}». Спросите что угодно про маршрут или бюджет.`
+      : 'Привет! Введите город в параметрах, а я помогу составить маршрут.';
+    addMessage('assistant', hello);
+    chatHistory = [{ role: 'assistant', content: hello }];
+  }
+  function openAiChat() {
+    aiChatOverlay.hidden = false;
+    if (chatMessages.children.length === 0) resetChat();
+    updateChatHint();
+    setTimeout(() => chatInput.focus(), 50);
+  }
+  function closeAiChat() { aiChatOverlay.hidden = true; stopRecognition(); }
+
+  function updateChatHint() {
+    if (!aiSettings.apiKey) chatHint.textContent = '⚠️ Укажите API-ключ DeepSeek в настройках (⚙️).';
+    else chatHint.textContent = `Модель: ${aiSettings.model} · Город: ${state?.trip?.city || '(не выбран)'} · Голосовой ввод: Chrome/Edge.`;
+  }
+
+  document.getElementById('btnAiChat').addEventListener('click', openAiChat);
+  document.getElementById('btnCloseAiChat').addEventListener('click', closeAiChat);
+  aiChatOverlay.addEventListener('click', (e) => { if (e.target === aiChatOverlay) closeAiChat(); });
+
+  function addMessage(role, text) {
+    const wrapper = document.createElement('div');
+    wrapper.className = `msg msg-${role}`;
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.textContent = text;
+    wrapper.appendChild(bubble);
+    chatMessages.appendChild(wrapper);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return bubble;
+  }
+
+  function buildSystemPrompt() {
+    const lines = ['Ты — помощник по планированию поездок.'];
+    if (state?.trip?.city) lines.push(`Город поездки: ${state.trip.city}.`);
+    if (state?.trip?.startDate && state.trip.endDate) lines.push(`Даты: ${state.trip.startDate} — ${state.trip.endDate}.`);
+    if (state?.excursions?.length) lines.push(`В плане уже ${state.excursions.length} экскурсий.`);
+    if (state?.trip?.budget?.total > 0) {
+      const t = calcTotals(state);
+      lines.push(`Бюджет: ${formatMoney(t.total, t.currency)}, потрачено ${formatMoney(t.spent, t.currency)}, осталось ${formatMoney(t.remaining, t.currency)}.`);
+    }
+    lines.push('Отвечай по-русски, кратко. Не выдумывай цены и часы работы — предупреди, если не уверен.');
+    return lines.join(' ');
+  }
+
+  async function sendChatMessage() {
+    const text = chatInput.value.trim();
+    if (!text) return;
+    if (!aiSettings.apiKey) { addMessage('error', 'Сначала укажите API-ключ DeepSeek в настройках (⚙️).'); return; }
+    addMessage('user', text);
+    chatHistory.push({ role: 'user', content: text });
+    chatInput.value = ''; chatInput.style.height = 'auto';
+    const placeholder = addMessage('assistant', 'Думаю…');
+    placeholder.style.opacity = '0.6';
+    try {
+      const reply = await callDeepSeek();
+      placeholder.textContent = reply;
+      placeholder.style.opacity = '1';
+      chatHistory.push({ role: 'assistant', content: reply });
+    } catch (err) {
+      placeholder.parentElement.className = 'msg msg-error';
+      placeholder.textContent = `Ошибка: ${err.message}`;
+    }
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  async function callDeepSeek() {
+    const base = aiSettings.baseUrl.replace(/\/+$/, '');
+    const url = `${base}/chat/completions`;
+    const messages = [{ role: 'system', content: buildSystemPrompt() }, ...chatHistory.slice(-10)];
+    const body = { model: aiSettings.model, messages, temperature: 0.7, max_tokens: 1200 };
+    let response;
+    try {
+      response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${aiSettings.apiKey}` },
+        body: JSON.stringify(body),
+      });
+    } catch (e) { throw new Error('Не удалось отправить запрос (возможно, CORS). Укажите прокси в Base URL.'); }
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      if (response.status === 401) throw new Error('Неверный API-ключ (401).');
+      if (response.status === 402) throw new Error('Недостаточно средств на балансе DeepSeek (402).');
+      throw new Error(`HTTP ${response.status}: ${errText.slice(0, 200)}`);
+    }
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) throw new Error('Пустой ответ от модели.');
+    return content.trim();
+  }
+
+  document.getElementById('btnSendChat').addEventListener('click', sendChatMessage);
+  chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } });
+  chatInput.addEventListener('input', () => { chatInput.style.height = 'auto'; chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px'; });
+
+  /* ---------- Speech ---------- */
+  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let isRecording = false;
+  function initRecognition() {
+    if (!SpeechRecognitionCtor) return null;
+    const rec = new SpeechRecognitionCtor();
+    rec.lang = 'ru-RU'; rec.continuous = false; rec.interimResults = false;
+    rec.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      chatInput.value = (chatInput.value + ' ' + transcript).trim();
+      chatInput.dispatchEvent(new Event('input'));
+    };
+    rec.onerror = (event) => {
+      if (event.error === 'not-allowed') chatHint.textContent = 'Доступ к микрофону запрещён.';
+      else if (event.error === 'no-speech') chatHint.textContent = 'Речь не распознана.';
+      else chatHint.textContent = 'Ошибка распознавания: ' + event.error;
+    };
+    rec.onend = () => { isRecording = false; micBtn.classList.remove('recording'); };
+    return rec;
+  }
+  function startRecognition() {
+    if (!SpeechRecognitionCtor) { chatHint.textContent = 'Голосовой ввод не поддерживается. Используйте Chrome или Edge.'; return; }
+    if (!recognition) recognition = initRecognition();
+    if (!recognition) return;
+    try { recognition.start(); isRecording = true; micBtn.classList.add('recording'); chatHint.textContent = '🎤 Говорите…'; }
+    catch (e) { chatHint.textContent = 'Не удалось запустить микрофон.'; }
+  }
+  function stopRecognition() {
+    if (recognition && isRecording) { try { recognition.stop(); } catch (_) {} }
+    isRecording = false; micBtn.classList.remove('recording');
+  }
+  micBtn.addEventListener('click', () => isRecording ? stopRecognition() : startRecognition());
+
+  /* ---------- Init ---------- */
+  load();
+  populateCitySuggestions();
+  populateCatalog();
+  render();
+  updateChatHint();
+
+  document.getElementById('btnSample').addEventListener('click', loadSampleItinerary);
+  document.getElementById('btnAdd').addEventListener('click', () => {
+    if (!state.trip.startDate || !state.trip.endDate) { alert('Сначала введите город и даты поездки.'); return; }
+    openModal();
+  });
+})();
+</script>
+</body>
+</html>
